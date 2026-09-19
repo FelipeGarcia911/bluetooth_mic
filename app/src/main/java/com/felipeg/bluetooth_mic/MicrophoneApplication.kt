@@ -30,6 +30,7 @@ internal class MicrophoneContainer(context: Context) {
         input: AudioDeviceInfo,
         output: AudioDeviceInfo,
         onLive: () -> Unit,
+        onLevel: (Float) -> Unit,
         onFinished: (MicrophoneProblem?) -> Unit,
-    ): AudioEngine = AudioLoop(AndroidPcmStreamFactory(input, output), audioWorker, onLive, onFinished)
+    ): AudioEngine = AudioLoop(AndroidPcmStreamFactory(input, output), audioWorker, onLive, onLevel, onFinished)
 }

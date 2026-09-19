@@ -25,6 +25,7 @@ data class MicrophoneState(
     val mode: MicrophoneMode? = null,
     val outputName: String? = null,
     val problem: MicrophoneProblem? = null,
+    val microphoneLevel: Float = 0f,
 ) {
     val isActive: Boolean
         get() = phase == MicrophonePhase.STARTING || phase == MicrophonePhase.LIVE

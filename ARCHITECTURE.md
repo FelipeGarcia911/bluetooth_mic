@@ -1,13 +1,15 @@
 # Bluetooth Microphone Architecture
 
-An Android application with a single module and manual dependency composition. The current UI is functional and temporary; the final visual design is still pending. Minimum Android version: 12 (API 31), based on the original configuration.
+An Android application with a single module and manual dependency composition. The Compose UI provides a focused push-to-talk screen, device selection sheets, and lightweight audio settings. Minimum Android version: 12 (API 31), based on the original configuration.
 
 ## Responsibilities
 
 | Component | Responsibility |
 | --- | --- |
 | `MainActivity` | Handle the screen lifecycle, permissions, and navigation to Android settings. |
-| `MicrophoneControls` | Present state and emit actions without depending on services or audio APIs. |
+| `MicrophoneControls` | Coordinate the main/settings screens and device sheets without depending on services or native audio APIs. |
+| `MainScreen` | Render output/input status, live input level, and microphone controls. |
+| `SettingsScreen` | Present the available device and platform-processing settings. |
 | `MicrophoneController` | Define the control contract consumed by the screen. |
 | `AndroidMicrophoneController` | Translate user actions into service commands. |
 | `MicrophoneSessionStore` | Act as the single owner of observable state and session identifiers. |
@@ -43,6 +45,8 @@ The user explicitly selects a connected Bluetooth media output. For input, the u
 For the phone, wired, and USB inputs, routing uses `AudioRecord.setPreferredDevice()`. A Bluetooth SCO or LE headset input additionally selects its matching communication output with `setCommunicationDevice()`, because Android activates the corresponding Bluetooth capture route as a pair. `AudioTrack` still requests the connected Bluetooth media speaker and the app verifies the actual input and output. Android devices that cannot combine a microphone and speaker from different Bluetooth devices stop with a clear routing error; using the phone microphone or the same Bluetooth device for input and output remains the compatible fallback. The communication-device request is cleared when the session ends.
 
 The state store and commands run on the main thread. Each request has an identifier: releasing the button invalidates a pending start, and a response from an earlier session cannot modify the next one. Native resource creation, transfer, and release are serialized on one application worker. Non-blocking PCM operations permit cancellation; a short lock protects muting from concurrent release.
+
+While a session is live, the audio worker calculates a normalized RMS level at a limited update rate and publishes it through `MicrophoneState`. Compose only renders that neutral value; it does not access `AudioRecord`, `AudioTrack`, or Android routing objects. Input and output selection use separate modal sheets and are locked while a session is active.
 
 The engine accepts one start per instance and an idempotent stop, including a stop issued before startup. Permissions are checked when the service starts; granting a permission never activates the microphone automatically. The service uses `START_NOT_STICKY` to prevent restarts without a new user action.
 

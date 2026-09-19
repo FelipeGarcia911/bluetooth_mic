@@ -27,6 +27,11 @@ internal class MicrophoneSessionStore {
         mutableState.value = state.value.copy(phase = MicrophonePhase.LIVE, outputName = outputName)
     }
 
+    fun updateLevel(id: Long, level: Float) {
+        if (!accepts(id) || state.value.phase != MicrophonePhase.LIVE) return
+        mutableState.value = state.value.copy(microphoneLevel = level.coerceIn(0f, 1f))
+    }
+
     fun finish(id: Long, problem: MicrophoneProblem? = null) {
         if (!accepts(id)) return
         cancel(problem)

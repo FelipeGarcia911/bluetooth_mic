@@ -96,6 +96,8 @@ class MicrophoneService : Service() {
                 handler.post {
                     if (engine != null) sessions.markLive(requested, output.productName.toString())
                 }
+            }, onLevel = { level ->
+                handler.post { sessions.updateLevel(requested, level) }
             }, onFinished = { problem ->
                 handler.post { if (sessions.accepts(requested)) finish(problem) }
             }).also { it.start() }

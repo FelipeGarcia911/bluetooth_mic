@@ -5,12 +5,15 @@ import android.os.SystemClock
 import android.util.Log
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.log10
+import kotlin.math.sqrt
 
 /** Pumps audio on the supplied serial worker; callbacks are delivered on that worker. */
 internal class AudioLoop(
     private val streamFactory: PcmStreamFactory,
     private val worker: Executor,
     private val onLive: () -> Unit,
+    private val onLevel: (Float) -> Unit,
     private val onFinished: (MicrophoneProblem?) -> Unit,
 ) : AudioEngine {
     private val started = AtomicBoolean(false)
@@ -69,6 +72,7 @@ internal class AudioLoop(
     private fun pumpAudio(stream: PcmStream) {
         val buffer = ShortArray(stream.chunkSize)
         val routeDeadline = SystemClock.elapsedRealtime() + ROUTE_TIMEOUT_MS
+        var nextLevelUpdate = 0L
         var transmitting = false
         while (!cancelled.get()) {
             val routeReady = stream.isRouteReady
@@ -76,6 +80,11 @@ internal class AudioLoop(
             if (stream.isMicrophoneSilenced) throw AudioException(MicrophoneProblem.MICROPHONE_SILENCED)
 
             val count = stream.read(buffer)
+            val now = SystemClock.elapsedRealtime()
+            if (count > 0 && now >= nextLevelUpdate) {
+                onLevel(calculateLevel(buffer, count))
+                nextLevelUpdate = now + LEVEL_UPDATE_INTERVAL_MS
+            }
             if (!routeReady) buffer.fill(0)
             if (routeReady && !transmitting) {
                 enableOutput(stream)
@@ -84,6 +93,18 @@ internal class AudioLoop(
             writeChunk(stream, buffer, count, transmitting)
             if (count == 0) Thread.sleep(RETRY_DELAY_MS)
         }
+    }
+
+    private fun calculateLevel(buffer: ShortArray, count: Int): Float {
+        var sum = 0.0
+        for (index in 0 until count) {
+            val sample = buffer[index].toDouble()
+            sum += sample * sample
+        }
+        val normalizedRms = sqrt(sum / count) / Short.MAX_VALUE
+        if (normalizedRms <= 0.000_001) return 0f
+        val decibels = 20.0 * log10(normalizedRms)
+        return ((decibels + LEVEL_FLOOR_DB) / LEVEL_FLOOR_DB).toFloat().coerceIn(0f, 1f)
     }
 
     private fun verifyRoute(ready: Boolean, transmitting: Boolean, deadline: Long) {
@@ -118,5 +139,7 @@ internal class AudioLoop(
         const val ROUTE_TIMEOUT_MS = 4_000L
         const val WRITE_TIMEOUT_MS = 2_000L
         const val RETRY_DELAY_MS = 3L
+        const val LEVEL_UPDATE_INTERVAL_MS = 50L
+        const val LEVEL_FLOOR_DB = 60.0
     }
 }
