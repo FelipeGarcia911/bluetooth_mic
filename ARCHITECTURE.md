@@ -19,7 +19,8 @@ An Android application with a single module and manual dependency composition. T
 | `PcmStream` / `PcmStreamFactory` | Define focused contracts for PCM transport and creation. |
 | `AndroidPcmStreamFactory` | Configure and build AudioRecord/AudioTrack while cleaning up partial creations. |
 | `AndroidPcmStream` | Adapt the capture/playback APIs and release their resources. |
-| `BluetoothOutputMonitor` | Observe available media outputs while the screen is visible. |
+| `VoiceProcessingEffects` | Attach and own the optional platform AEC and noise-suppression effects. |
+| `AudioDeviceRepository` | Observe available Bluetooth outputs and input microphones, and own both user selections. |
 | `MicrophoneContainer` | Compose dependencies and share a serial worker across sessions. |
 
 ## Design Decisions
@@ -33,9 +34,13 @@ An Android application with a single module and manual dependency composition. T
 
 ## Audio and Concurrency
 
-Built-in microphone → in-memory 16-bit mono PCM → AudioTrack → Bluetooth A2DP or LE Audio output. The app does not save recordings or use the internet. Android handles pairing; the app does not scan for devices and therefore does not request location permissions.
+Built-in microphone → platform voice processing → in-memory 16-bit mono PCM → AudioTrack → Bluetooth A2DP or LE Audio output. The app does not save recordings or use the internet. Android handles pairing; the app does not scan for devices and therefore does not request location permissions.
 
-The app selects the first available Bluetooth media output. It requests the built-in input and selected output, then verifies the effective route before sending voice audio. It sends silence during startup. Route changes, disconnection, system-muted microphone, or audio-focus loss stop the session; reconnecting does not reactivate it.
+Each session uses `MODE_IN_COMMUNICATION`, `VOICE_COMMUNICATION` capture, and `USAGE_VOICE_COMMUNICATION` playback. The capture source lets the device apply its voice-processing pipeline. The app also attempts to attach `AcousticEchoCanceler` and `NoiseSuppressor` to the AudioRecord session when the device implements them; unavailable or rejected effects do not prevent the microphone from working. Both effects are released with their recording session. AudioTrack receives the platform's low-latency performance hint, while the existing 10 ms application chunks remain unchanged.
+
+The user explicitly selects a connected Bluetooth media output. For input, the user can select the phone microphone or a connected Bluetooth, wired, or USB microphone. The repository keeps both selections by Android audio-device ID for the process lifetime. If a selected device disappears, output falls back to another available Bluetooth device and input falls back to the built-in microphone. Each session resolves both selected devices again and verifies the effective routes before sending voice audio. It sends silence during startup. Route changes, input/output disconnection, system-muted microphone, or audio-focus loss stop the session; reconnecting does not reactivate it.
+
+For the phone, wired, and USB inputs, routing uses `AudioRecord.setPreferredDevice()`. A Bluetooth SCO or LE headset input additionally selects its matching communication output with `setCommunicationDevice()`, because Android activates the corresponding Bluetooth capture route as a pair. `AudioTrack` still requests the connected Bluetooth media speaker and the app verifies the actual input and output. Android devices that cannot combine a microphone and speaker from different Bluetooth devices stop with a clear routing error; using the phone microphone or the same Bluetooth device for input and output remains the compatible fallback. The communication-device request is cleared when the session ends.
 
 The state store and commands run on the main thread. Each request has an identifier: releasing the button invalidates a pending start, and a response from an earlier session cannot modify the next one. Native resource creation, transfer, and release are serialized on one application worker. Non-blocking PCM operations permit cancellation; a short lock protects muting from concurrent release.
 
@@ -47,6 +52,6 @@ Open mode continues while the screen is locked through a microphone/mediaPlaybac
 
 Build and static analysis: `./gradlew :app:assembleDebug :app:lintDebug`. No automated tests were added; the project's original example tests remain.
 
-Latency, locked-screen stability, and feedback require evaluation with a real phone and speaker. The app does not promise zero latency or feedback elimination. Android can change routes asynchronously; stopping after detecting a change cannot guarantee that zero local samples play during the transition. After releasing the button, samples already buffered by the speaker may still play.
+Latency, locked-screen stability, feedback, and native AEC effectiveness require evaluation with a real phone and speaker. AEC support and quality depend on the phone vendor and its ability to use Bluetooth playback as an echo reference. The roughly 500 ms observed on A2DP is mainly transport buffering and is not an application delay. The app does not promise zero latency or feedback elimination. Android can change routes asynchronously; stopping after detecting a change cannot guarantee that zero local samples play during the transition. After releasing the button, samples already buffered by the speaker may still play.
 
 For the first physical check: use moderate volume, separate the phone from the speaker, speak in both modes, stop from the notification, and disconnect the speaker while broadcasting. Also confirm that a quick press does not leave the microphone active and that another app taking audio focus stops the session.

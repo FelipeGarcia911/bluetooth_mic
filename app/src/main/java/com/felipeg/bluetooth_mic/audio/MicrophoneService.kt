@@ -29,11 +29,14 @@ class MicrophoneService : Service() {
     private lateinit var resources: AudioSessionResources
     private var engine: AudioEngine? = null
     private var sessionId = INVALID_SESSION
+    private var inputId: Int? = null
     private var outputId: Int? = null
 
     private val devices = object : AudioDeviceCallback() {
         override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
-            if (removed.any { it.id == outputId }) finish(MicrophoneProblem.DEVICE_DISCONNECTED)
+            if (removed.any { it.id == inputId || it.id == outputId }) {
+                finish(MicrophoneProblem.DEVICE_DISCONNECTED)
+            }
         }
     }
     private val noisyReceiver = object : BroadcastReceiver() {
@@ -74,13 +77,22 @@ class MicrophoneService : Service() {
         try {
             requireMicrophonePermission()
             startForeground(MicrophoneNotification.ID, notification.build(), FOREGROUND_TYPES)
-            val output = manager.bluetoothOutputs().firstOrNull()
+            val output = container.devices.resolveSelectedOutput()
                 ?: throw AudioException(MicrophoneProblem.NO_BLUETOOTH_OUTPUT)
+            val input = container.devices.resolveSelectedInput()
+                ?: throw AudioException(MicrophoneProblem.NO_AUDIO_INPUT)
+            val communicationDevice = if (input.isBluetoothInput()) {
+                manager.communicationDeviceFor(input)
+                    ?: throw AudioException(MicrophoneProblem.INPUT_ROUTE_UNAVAILABLE)
+            } else {
+                null
+            }
+            inputId = input.id
             outputId = output.id
-            resources.acquire {
+            resources.acquire(communicationDevice) {
                 if (sessions.accepts(requested)) finish(MicrophoneProblem.AUDIO_INTERRUPTED)
             }
-            engine = container.createEngine(output, onLive = {
+            engine = container.createEngine(input, output, onLive = {
                 handler.post {
                     if (engine != null) sessions.markLive(requested, output.productName.toString())
                 }
@@ -102,6 +114,7 @@ class MicrophoneService : Service() {
     private fun releaseAudio() {
         engine?.stop()
         engine = null
+        inputId = null
         outputId = null
         resources.close()
     }

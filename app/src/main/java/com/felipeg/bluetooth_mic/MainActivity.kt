@@ -3,7 +3,6 @@ package com.felipeg.bluetooth_mic
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -17,15 +16,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import com.felipeg.bluetooth_mic.audio.BluetoothOutputMonitor
 import com.felipeg.bluetooth_mic.audio.MicrophoneMode
+import com.felipeg.bluetooth_mic.audio.microphoneAudioAttributes
 import com.felipeg.bluetooth_mic.ui.MicrophoneControls
 import com.felipeg.bluetooth_mic.ui.theme.Bluetooth_MicTheme
 
 /** Hosts Android permissions/navigation. The composable only receives state and user actions. */
 class MainActivity : ComponentActivity() {
-    private val controller get() = (application as MicrophoneApplication).container.controller
-    private lateinit var outputs: BluetoothOutputMonitor
+    private val container get() = (application as MicrophoneApplication).container
+    private val controller get() = container.controller
     private var microphoneGranted by mutableStateOf(false)
     private var notificationsGranted by mutableStateOf(false)
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -35,19 +34,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        outputs = BluetoothOutputMonitor(getSystemService(AudioManager::class.java))
-        volumeControlStream = AudioManager.STREAM_MUSIC
+        volumeControlStream = microphoneAudioAttributes.volumeControlStream
         refreshPermissions()
         enableEdgeToEdge()
         setContent {
             val state by controller.state.collectAsState()
-            val outputName by outputs.outputName.collectAsState()
+            val devices by container.devices.state.collectAsState()
             Bluetooth_MicTheme {
                 MicrophoneControls(
                     state = state,
-                    outputName = outputName,
+                    inputs = devices.inputs,
+                    selectedInputId = devices.selectedInputId,
+                    outputs = devices.outputs,
+                    selectedOutputId = devices.selectedOutputId,
                     microphoneGranted = microphoneGranted,
                     notificationsGranted = notificationsGranted,
+                    onSelectInput = container.devices::selectInput,
+                    onSelectOutput = container.devices::selectOutput,
                     onRequestPermissions = ::requestPermissions,
                     onOpenPermissions = ::openApplicationSettings,
                     onHoldStart = { controller.start(MicrophoneMode.HOLD) },
@@ -60,11 +63,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        outputs.start()
-    }
-
     override fun onResume() {
         super.onResume()
         refreshPermissions()
@@ -72,7 +70,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         controller.stopHeldMicrophone()
-        outputs.close()
         super.onStop()
     }
 

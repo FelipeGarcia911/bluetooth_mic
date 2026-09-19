@@ -8,7 +8,8 @@ import com.felipeg.bluetooth_mic.audio.MicrophoneProblem
 internal fun MicrophoneProblem?.messageResource(): Int = when (this) {
     MicrophoneProblem.PERMISSION_REQUIRED -> R.string.error_microphone_permission
     MicrophoneProblem.NO_BLUETOOTH_OUTPUT -> R.string.connect_speaker
-    MicrophoneProblem.NO_PHONE_MICROPHONE -> R.string.error_no_microphone
+    MicrophoneProblem.NO_AUDIO_INPUT -> R.string.error_no_microphone
+    MicrophoneProblem.INPUT_ROUTE_UNAVAILABLE -> R.string.error_input_route
     MicrophoneProblem.UNSUPPORTED_FORMAT -> R.string.error_audio_format
     MicrophoneProblem.INITIALIZATION_FAILED -> R.string.error_audio_initialization
     MicrophoneProblem.ROUTING_FAILED -> R.string.error_audio_routing

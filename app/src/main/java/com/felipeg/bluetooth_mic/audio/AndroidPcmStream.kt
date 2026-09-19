@@ -4,39 +4,37 @@ import android.annotation.SuppressLint
 import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.util.Log
 
 internal val microphoneAudioAttributes: AudioAttributes = AudioAttributes.Builder()
-    .setUsage(AudioAttributes.USAGE_MEDIA)
+    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
     .build()
 
 /** Owns the native resources; construction releases partially created resources on failure. */
 internal class AndroidPcmStreamFactory(
-    private val manager: AudioManager,
+    private val input: AudioDeviceInfo,
     private val output: AudioDeviceInfo,
 ) : PcmStreamFactory {
     @SuppressLint("MissingPermission") // Checked by the service before scheduling the worker.
     override fun create(): PcmStream {
-        val input = manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-            .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
-            ?: throw AudioException(MicrophoneProblem.NO_PHONE_MICROPHONE)
         val configuration = selectConfiguration()
         val recorder = AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.MIC)
+            .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             .setAudioFormat(configuration.format(AudioFormat.CHANNEL_IN_MONO))
             .setBufferSizeInBytes(configuration.inputBufferBytes)
             .build()
         var player: AudioTrack? = null
+        var voiceProcessing: VoiceProcessingEffects? = null
         try {
             player = AudioTrack.Builder()
                 .setAudioAttributes(microphoneAudioAttributes)
                 .setAudioFormat(configuration.format(AudioFormat.CHANNEL_OUT_MONO))
                 .setTransferMode(AudioTrack.MODE_STREAM)
+                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 .setBufferSizeInBytes(configuration.outputBufferBytes)
                 .build()
             if (recorder.state != AudioRecord.STATE_INITIALIZED || player.state != AudioTrack.STATE_INITIALIZED) {
@@ -45,10 +43,23 @@ internal class AndroidPcmStreamFactory(
             if (!recorder.setPreferredDevice(input) || !player.setPreferredDevice(output)) {
                 throw AudioException(MicrophoneProblem.ROUTING_FAILED)
             }
+            voiceProcessing = VoiceProcessingEffects.attach(recorder.audioSessionId)
             player.setVolume(0f)
-            return AndroidPcmStream(recorder, player, input.id, output.id, configuration.chunkSamples)
+            return AndroidPcmStream(
+                recorder = recorder,
+                player = player,
+                voiceProcessing = voiceProcessing,
+                inputId = input.id,
+                outputId = output.id,
+                chunkSize = configuration.chunkSamples,
+            )
         } catch (exception: Exception) {
-            try { player?.release() } finally { recorder.release() }
+            try {
+                voiceProcessing?.close()
+                player?.release()
+            } finally {
+                recorder.release()
+            }
             throw exception
         }
     }
@@ -91,6 +102,7 @@ private data class PcmConfiguration(val sampleRate: Int, val inputMinimum: Int, 
 private class AndroidPcmStream(
     private val recorder: AudioRecord,
     private val player: AudioTrack,
+    private val voiceProcessing: VoiceProcessingEffects,
     private val inputId: Int,
     private val outputId: Int,
     override val chunkSize: Int,
@@ -127,6 +139,7 @@ private class AndroidPcmStream(
         releaseSafely { player.flush() }
         releaseSafely { player.release() }
         releaseSafely { recorder.stop() }
+        releaseSafely { voiceProcessing.close() }
         releaseSafely { recorder.release() }
     }
 
