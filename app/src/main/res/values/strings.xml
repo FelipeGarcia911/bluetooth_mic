@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">Bluetooth Mic</string>
+    <string name="microphone_title">Bluetooth Microphone</string>
+    <string name="connect_speaker">Connect a Bluetooth speaker</string>
+    <string name="speaker_name">Speaker: %1$s</string>
+    <string name="microphone_idle">Microphone off</string>
+    <string name="microphone_starting">Connecting audio…</string>
+    <string name="microphone_live">Broadcasting to %1$s</string>
+    <string name="allow_microphone">Allow microphone access</string>
+    <string name="allow_notifications">Allow notifications to stop the microphone</string>
+    <string name="open_permissions">Open app permissions</string>
+    <string name="hold_to_talk">Press and hold to talk</string>
+    <string name="open_microphone">Keep microphone open</string>
+    <string name="stop">Stop</string>
+    <string name="configure_bluetooth">Configure Bluetooth</string>
+    <string name="audio_hint">Use your phone buttons to adjust the volume. Keep the phone away from the speaker to prevent feedback.</string>
+    <string name="notification_channel">Active microphone</string>
+    <string name="notification_title">Bluetooth microphone active</string>
+    <string name="notification_message">A microphone session is running. Tap Stop to end it.</string>
+    <string name="error_microphone_permission">Microphone permission is required</string>
+    <string name="error_no_microphone">The phone microphone could not be found</string>
+    <string name="error_audio_format">Unsupported audio format</string>
+    <string name="error_audio_initialization">Audio could not be initialized</string>
+    <string name="error_audio_routing">Audio could not be routed to the Bluetooth speaker</string>
+    <string name="error_route_changed">The audio device changed. Broadcasting stopped</string>
+    <string name="error_microphone_silenced">Android muted the microphone. Check privacy controls and other apps</string>
+    <string name="error_audio_capture">Audio could not be captured</string>
+    <string name="error_audio_playback">Audio could not be played through the speaker</string>
+    <string name="error_audio_busy">Another app is using the audio system</string>
+    <string name="error_audio_interrupted">Another app needs the audio system. Broadcasting stopped</string>
+    <string name="error_disconnected">Speaker disconnected. Broadcasting stopped</string>
+    <string name="error_start">The microphone could not be started. Check the permissions and try again</string>
+</resources>
