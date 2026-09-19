@@ -1,4 +1,4 @@
-package com.felipeg.bluetooth_mic.ui.theme
+package com.felipeg.bluetooth_mic.presentation.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -22,10 +22,11 @@ private val BluetoothMicColors = darkColorScheme(
 )
 
 @Composable
-fun Bluetooth_MicTheme(content: @Composable () -> Unit) {
+fun BluetoothMicTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = BluetoothMicColors,
-        typography = Typography,
+        typography = AppTypography,
+        shapes = AppShapes,
         content = content,
     )
 }

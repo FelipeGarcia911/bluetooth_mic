@@ -1,4 +1,4 @@
-package com.felipeg.bluetooth_mic.ui
+package com.felipeg.bluetooth_mic.presentation.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -18,10 +18,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import com.felipeg.bluetooth_mic.ui.theme.TalkOrange
+import com.felipeg.bluetooth_mic.presentation.theme.InactiveMeter
+import com.felipeg.bluetooth_mic.presentation.theme.TalkOrange
 
 @Composable
-internal fun MicrophoneLevelMeter(level: Float, modifier: Modifier = Modifier) {
+internal fun AudioLevelMeter(level: Float, modifier: Modifier = Modifier) {
     val animatedLevel by animateFloatAsState(level.coerceIn(0f, 1f), label = "microphoneLevel")
     val heights = listOf(0.30f, 0.52f, 0.75f, 1f, 0.75f, 0.52f, 0.30f)
     Row(
@@ -33,7 +34,7 @@ internal fun MicrophoneLevelMeter(level: Float, modifier: Modifier = Modifier) {
             val threshold = (index.coerceAtMost(heights.lastIndex - index) + 1) / 4f
             Canvas(Modifier.width(5.dp).height((34 * heightFactor).dp)) {
                 drawRoundRect(
-                    color = if (animatedLevel >= threshold) TalkOrange else Color(0xFF354047),
+                    color = if (animatedLevel >= threshold) TalkOrange else InactiveMeter,
                     cornerRadius = CornerRadius(size.width / 2f),
                 )
             }

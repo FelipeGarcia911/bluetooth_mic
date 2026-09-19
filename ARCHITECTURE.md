@@ -6,10 +6,13 @@ An Android application with a single module and manual dependency composition. T
 
 | Component | Responsibility |
 | --- | --- |
-| `MainActivity` | Handle the screen lifecycle, permissions, and navigation to Android settings. |
-| `MicrophoneControls` | Coordinate the main/settings screens and device sheets without depending on services or native audio APIs. |
-| `MainScreen` | Render output/input status, live input level, and microphone controls. |
-| `SettingsScreen` | Present the available device and platform-processing settings. |
+| `MainActivity` | Host Compose, handle permissions, and launch Android settings. |
+| `MainViewModel` | Combine microphone, device, and permission state and handle UI actions. |
+| `MainRoute` | Collect UI state with lifecycle awareness and connect it to navigation. |
+| `AppNavigation` | Coordinate the main/settings destinations and device sheets. |
+| `MainScreen` | Render output/input status, live input level, and microphone controls from presentation models. |
+| `SettingsScreen` | Present device and platform-processing settings from presentation models. |
+| `presentation/components` | Hold the reusable device card/sheet, level, permission, status, and PTT controls. |
 | `MicrophoneController` | Define the control contract consumed by the screen. |
 | `AndroidMicrophoneController` | Translate user actions into service commands. |
 | `MicrophoneSessionStore` | Act as the single owner of observable state and session identifiers. |
@@ -27,12 +30,15 @@ An Android application with a single module and manual dependency composition. T
 
 ## Design Decisions
 
-- Responsibilities are separated and dependencies are provided through constructors. The screen depends on `MicrophoneController`; the engine depends on `PcmStreamFactory`, rather than Android device constructors.
+- Responsibilities are separated and dependencies are provided through constructors. `MainViewModel` depends on the existing controller, device state, and selection functions; composables only consume `MainUiState` and emit `MainUiAction`. The engine depends on `PcmStreamFactory`, rather than Android device constructors.
 - Contracts are specific to each consumer; no interface forces a component to manage UI, notifications, and audio together.
 - The implementation uses composition, adapters, and a simple factory. It does not introduce inheritance hierarchies or a dependency injection framework.
 - [Extract Class](https://refactoring.guru/extract-class) and [Extract Method](https://refactoring.guru/extract-method) are applied: native construction lives outside the loop, while routing checks, transfer, and cancellation use focused methods with clear names.
 - `MicrophoneProblem` provides typed errors. The presentation layer maps them to Android resources, while technical details are written to Logcat.
 - Session state lives at application scope and survives Activity recreation. The notification and controller finish the same session.
+- `AudioInputOption`, `AudioOutputOption`, and `MicrophoneState` are mapped at the presentation boundary. Compose receives only `AudioDeviceUiModel` and neutral UI enums.
+- The app uses a small explicit two-destination navigator instead of a navigation library. This keeps current needs simple while making the destinations visible and replaceable later.
+- Material 3 colors, typography, shapes, and spacing live in the presentation theme. Secondary icons are local vector drawables; the PTT microphone remains a custom Canvas glyph.
 
 ## Audio and Concurrency
 
@@ -54,7 +60,7 @@ Open mode continues while the screen is locked through a microphone/mediaPlaybac
 
 ## Limits and Verification
 
-Build and static analysis: `./gradlew :app:assembleDebug :app:lintDebug`. No automated tests were added; the project's original example tests remain.
+Build and static analysis: `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`. Unit verification uses `./gradlew :app:testDebugUnitTest` and covers state mapping, input/output selection, device fallback reflection, and PTT commands. Three Compose instrumentation tests cover selected-device rendering, the PTT gesture, and device-sheet content.
 
 Latency, locked-screen stability, feedback, and native AEC effectiveness require evaluation with a real phone and speaker. AEC support and quality depend on the phone vendor and its ability to use Bluetooth playback as an echo reference. The roughly 500 ms observed on A2DP is mainly transport buffering and is not an application delay. The app does not promise zero latency or feedback elimination. Android can change routes asynchronously; stopping after detecting a change cannot guarantee that zero local samples play during the transition. After releasing the button, samples already buffered by the speaker may still play.
 
