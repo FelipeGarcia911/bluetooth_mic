@@ -8,6 +8,8 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.util.Log
+import com.felipeg.bluetooth_mic.audio.processing.AudioProcessingSettings
+import com.felipeg.bluetooth_mic.audio.processing.AudioSourceProfile
 
 internal val microphoneAudioAttributes: AudioAttributes = AudioAttributes.Builder()
     .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
@@ -18,12 +20,13 @@ internal val microphoneAudioAttributes: AudioAttributes = AudioAttributes.Builde
 internal class AndroidPcmStreamFactory(
     private val input: AudioDeviceInfo,
     private val output: AudioDeviceInfo,
+    private val processingSettings: AudioProcessingSettings,
 ) : PcmStreamFactory {
     @SuppressLint("MissingPermission") // Checked by the service before scheduling the worker.
     override fun create(): PcmStream {
         val configuration = selectConfiguration()
         val recorder = AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+            .setAudioSource(processingSettings.audioSourceProfile.toAndroidAudioSource())
             .setAudioFormat(configuration.format(AudioFormat.CHANNEL_IN_MONO))
             .setBufferSizeInBytes(configuration.inputBufferBytes)
             .build()
@@ -43,7 +46,11 @@ internal class AndroidPcmStreamFactory(
             if (!recorder.setPreferredDevice(input) || !player.setPreferredDevice(output)) {
                 throw AudioException(MicrophoneProblem.ROUTING_FAILED)
             }
-            voiceProcessing = VoiceProcessingEffects.attach(recorder.audioSessionId)
+            voiceProcessing = VoiceProcessingEffects.attach(
+                audioSessionId = recorder.audioSessionId,
+                echoCancellationEnabled = processingSettings.echoCancellationEnabled,
+                noiseSuppressionEnabled = processingSettings.noiseSuppressionEnabled,
+            )
             player.setVolume(0f)
             return AndroidPcmStream(
                 recorder = recorder,
@@ -52,6 +59,8 @@ internal class AndroidPcmStreamFactory(
                 inputId = input.id,
                 outputId = output.id,
                 chunkSize = configuration.chunkSamples,
+                sampleRate = configuration.sampleRate,
+                audioSourceProfile = processingSettings.audioSourceProfile,
             )
         } catch (exception: Exception) {
             try {
@@ -80,6 +89,11 @@ internal class AndroidPcmStreamFactory(
     }
 }
 
+private fun AudioSourceProfile.toAndroidAudioSource(): Int = when (this) {
+    AudioSourceProfile.VOICE_COMMUNICATION -> MediaRecorder.AudioSource.VOICE_COMMUNICATION
+    AudioSourceProfile.VOICE_RECOGNITION -> MediaRecorder.AudioSource.VOICE_RECOGNITION
+}
+
 private data class PcmConfiguration(val sampleRate: Int, val inputMinimum: Int, val outputMinimum: Int) {
     val chunkSamples: Int = sampleRate * CHUNK_DURATION_MS / 1_000
     private val minimumBufferBytes = chunkSamples * BYTES_PER_SAMPLE * BUFFER_CHUNKS
@@ -106,6 +120,8 @@ private class AndroidPcmStream(
     private val inputId: Int,
     private val outputId: Int,
     override val chunkSize: Int,
+    override val sampleRate: Int,
+    override val audioSourceProfile: AudioSourceProfile,
 ) : PcmStream {
     override val isRouteReady: Boolean
         get() = recorder.routedDevice?.id == inputId && player.routedDevice?.id == outputId
@@ -131,6 +147,11 @@ private class AndroidPcmStream(
 
     override fun setMuted(muted: Boolean) {
         player.setVolume(if (muted) 0f else 1f)
+    }
+
+    override fun setVoiceProcessing(echoCancellationEnabled: Boolean, noiseSuppressionEnabled: Boolean) {
+        voiceProcessing.setEchoCancellationEnabled(echoCancellationEnabled)
+        voiceProcessing.setNoiseSuppressionEnabled(noiseSuppressionEnabled)
     }
 
     override fun close() {

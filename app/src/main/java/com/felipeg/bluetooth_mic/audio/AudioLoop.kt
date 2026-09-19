@@ -3,6 +3,9 @@ package com.felipeg.bluetooth_mic.audio
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import com.felipeg.bluetooth_mic.audio.processing.AudioProcessingPipeline
+import com.felipeg.bluetooth_mic.audio.processing.AudioProcessingSettings
+import com.felipeg.bluetooth_mic.audio.settings.AudioProcessingSettingsProvider
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.log10
@@ -11,6 +14,9 @@ import kotlin.math.sqrt
 /** Pumps audio on the supplied serial worker; callbacks are delivered on that worker. */
 internal class AudioLoop(
     private val streamFactory: PcmStreamFactory,
+    private val processingSettings: AudioProcessingSettingsProvider,
+    private val sessionSettings: AudioProcessingSettings,
+    private val processingPipeline: AudioProcessingPipeline = AudioProcessingPipeline(),
     private val worker: Executor,
     private val onLive: () -> Unit,
     private val onLevel: (Float) -> Unit,
@@ -40,6 +46,7 @@ internal class AudioLoop(
                 try {
                     synchronized(streamLock) { activeStream = stream }
                     if (!cancelled.get()) {
+                        logConfiguration(stream)
                         stream.start()
                         pumpAudio(stream)
                     }
@@ -74,6 +81,8 @@ internal class AudioLoop(
         val routeDeadline = SystemClock.elapsedRealtime() + ROUTE_TIMEOUT_MS
         var nextLevelUpdate = 0L
         var transmitting = false
+        var appliedAec = sessionSettings.echoCancellationEnabled
+        var appliedNoiseSuppression = sessionSettings.noiseSuppressionEnabled
         while (!cancelled.get()) {
             val routeReady = stream.isRouteReady
             verifyRoute(routeReady, transmitting, routeDeadline)
@@ -85,6 +94,18 @@ internal class AudioLoop(
                 onLevel(calculateLevel(buffer, count))
                 nextLevelUpdate = now + LEVEL_UPDATE_INTERVAL_MS
             }
+            val settings = processingSettings.currentSettings()
+            processingPipeline.process(buffer, count, stream.sampleRate, settings)
+            if (settings.echoCancellationEnabled != appliedAec ||
+                settings.noiseSuppressionEnabled != appliedNoiseSuppression
+            ) {
+                stream.setVoiceProcessing(
+                    settings.echoCancellationEnabled,
+                    settings.noiseSuppressionEnabled,
+                )
+                appliedAec = settings.echoCancellationEnabled
+                appliedNoiseSuppression = settings.noiseSuppressionEnabled
+            }
             if (!routeReady) buffer.fill(0)
             if (routeReady && !transmitting) {
                 enableOutput(stream)
@@ -93,6 +114,21 @@ internal class AudioLoop(
             writeChunk(stream, buffer, count, transmitting)
             if (count == 0) Thread.sleep(RETRY_DELAY_MS)
         }
+    }
+
+    private fun logConfiguration(stream: PcmStream) {
+        val expander = if (sessionSettings.expanderEnabled) {
+            "${sessionSettings.expanderThresholdDb}dB/${sessionSettings.expanderRatio}:1"
+        } else {
+            "off"
+        }
+        val highPass = if (sessionSettings.highPassEnabled) "${sessionSettings.highPassCutoffHz}Hz" else "off"
+        Log.i(
+            TAG,
+            "Audio processing: source=${stream.audioSourceProfile}, gain=${sessionSettings.inputGainDb}dB, " +
+                "hpf=$highPass, expander=$expander, AEC=${sessionSettings.echoCancellationEnabled}, " +
+                "NS=${sessionSettings.noiseSuppressionEnabled}, sampleRate=${stream.sampleRate}",
+        )
     }
 
     private fun calculateLevel(buffer: ShortArray, count: Int): Float {

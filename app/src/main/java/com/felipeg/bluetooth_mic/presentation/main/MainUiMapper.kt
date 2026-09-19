@@ -8,6 +8,8 @@ import com.felipeg.bluetooth_mic.audio.MicrophoneMode
 import com.felipeg.bluetooth_mic.audio.MicrophonePhase
 import com.felipeg.bluetooth_mic.audio.MicrophoneProblem
 import com.felipeg.bluetooth_mic.audio.MicrophoneState
+import com.felipeg.bluetooth_mic.audio.processing.AudioProcessingSettings
+import com.felipeg.bluetooth_mic.audio.processing.detectPreset
 
 internal data class PermissionUiState(
     val microphoneGranted: Boolean = false,
@@ -18,6 +20,7 @@ internal fun mapMainUiState(
     microphone: MicrophoneState,
     devices: AudioDeviceState,
     permissions: PermissionUiState,
+    processingSettings: AudioProcessingSettings,
 ): MainUiState {
     val inputs = devices.inputs.map { it.toUiModel(it.id == devices.selectedInputId) }
     val outputs = devices.outputs.map { it.toUiModel(it.id == devices.selectedOutputId) }
@@ -33,6 +36,7 @@ internal fun mapMainUiState(
         message = microphone.problem?.toUiMessage(),
         microphoneGranted = permissions.microphoneGranted,
         notificationsGranted = permissions.notificationsGranted,
+        audioProcessingPreset = detectPreset(processingSettings),
     )
 }
 

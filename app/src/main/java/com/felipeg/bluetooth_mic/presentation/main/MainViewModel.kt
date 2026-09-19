@@ -7,7 +7,9 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.felipeg.bluetooth_mic.audio.AudioDeviceState
 import com.felipeg.bluetooth_mic.audio.MicrophoneController
 import com.felipeg.bluetooth_mic.audio.MicrophoneMode
+import com.felipeg.bluetooth_mic.audio.processing.AudioProcessingSettings
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -18,14 +20,26 @@ internal class MainViewModel(
     private val deviceState: StateFlow<AudioDeviceState>,
     private val selectInput: (Int) -> Unit,
     private val selectOutput: (Int) -> Unit,
+    processingSettings: Flow<AudioProcessingSettings> = MutableStateFlow(AudioProcessingSettings()),
 ) : ViewModel() {
     private val permissions = MutableStateFlow(PermissionUiState())
 
-    val uiState: StateFlow<MainUiState> = combine(controller.state, deviceState, permissions, ::mapMainUiState)
+    val uiState: StateFlow<MainUiState> = combine(
+        controller.state,
+        deviceState,
+        permissions,
+        processingSettings,
+        ::mapMainUiState,
+    )
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = mapMainUiState(controller.state.value, deviceState.value, permissions.value),
+            initialValue = mapMainUiState(
+                controller.state.value,
+                deviceState.value,
+                permissions.value,
+                AudioProcessingSettings(),
+            ),
         )
 
     fun updatePermissions(microphoneGranted: Boolean, notificationsGranted: Boolean) {
@@ -52,11 +66,12 @@ internal class MainViewModel(
         private val deviceState: StateFlow<AudioDeviceState>,
         private val selectInput: (Int) -> Unit,
         private val selectOutput: (Int) -> Unit,
+        private val processingSettings: Flow<AudioProcessingSettings>,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
             require(modelClass.isAssignableFrom(MainViewModel::class.java))
-            return MainViewModel(controller, deviceState, selectInput, selectOutput) as T
+            return MainViewModel(controller, deviceState, selectInput, selectOutput, processingSettings) as T
         }
     }
 }

@@ -12,14 +12,17 @@ import com.felipeg.bluetooth_mic.presentation.components.AudioDeviceSheet
 import com.felipeg.bluetooth_mic.presentation.main.MainScreen
 import com.felipeg.bluetooth_mic.presentation.main.MainUiAction
 import com.felipeg.bluetooth_mic.presentation.main.MainUiState
+import com.felipeg.bluetooth_mic.presentation.processing.AudioProcessingRoute
+import com.felipeg.bluetooth_mic.presentation.processing.AudioProcessingViewModel
 import com.felipeg.bluetooth_mic.presentation.settings.SettingsScreen
 
-private enum class AppDestination { MAIN, SETTINGS }
+private enum class AppDestination { MAIN, SETTINGS, AUDIO_PROCESSING }
 private enum class DeviceSheet { INPUT, OUTPUT }
 
 @Composable
 internal fun AppNavigation(
     state: MainUiState,
+    processingViewModel: AudioProcessingViewModel,
     onAction: (MainUiAction) -> Unit,
     onRequestPermissions: () -> Unit,
     onOpenPermissions: () -> Unit,
@@ -28,8 +31,11 @@ internal fun AppNavigation(
     var destination by rememberSaveable { mutableStateOf(AppDestination.MAIN) }
     var visibleSheet by rememberSaveable { mutableStateOf<DeviceSheet?>(null) }
 
-    BackHandler(enabled = destination == AppDestination.SETTINGS && visibleSheet == null) {
-        destination = AppDestination.MAIN
+    BackHandler(enabled = destination != AppDestination.MAIN && visibleSheet == null) {
+        destination = when (destination) {
+            AppDestination.AUDIO_PROCESSING -> AppDestination.SETTINGS
+            AppDestination.SETTINGS, AppDestination.MAIN -> AppDestination.MAIN
+        }
     }
 
     when (destination) {
@@ -50,6 +56,11 @@ internal fun AppNavigation(
             onChooseOutput = { if (!state.isActive) visibleSheet = DeviceSheet.OUTPUT },
             onOpenBluetooth = onOpenBluetooth,
             onOpenPermissions = onOpenPermissions,
+            onOpenAudioProcessing = { destination = AppDestination.AUDIO_PROCESSING },
+        )
+        AppDestination.AUDIO_PROCESSING -> AudioProcessingRoute(
+            viewModel = processingViewModel,
+            onBack = { destination = AppDestination.SETTINGS },
         )
     }
 

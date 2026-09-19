@@ -17,6 +17,7 @@ import com.felipeg.bluetooth_mic.audio.microphoneAudioAttributes
 import com.felipeg.bluetooth_mic.presentation.main.MainRoute
 import com.felipeg.bluetooth_mic.presentation.main.MainUiAction
 import com.felipeg.bluetooth_mic.presentation.main.MainViewModel
+import com.felipeg.bluetooth_mic.presentation.processing.AudioProcessingViewModel
 import com.felipeg.bluetooth_mic.presentation.theme.BluetoothMicTheme
 
 /** Hosts Android permissions/navigation. The composable only receives state and user actions. */
@@ -28,6 +29,13 @@ class MainActivity : ComponentActivity() {
             deviceState = container.devices.state,
             selectInput = container.devices::selectInput,
             selectOutput = container.devices::selectOutput,
+            processingSettings = container.processingSettings.settings,
+        )
+    }
+    private val processingViewModel by viewModels<AudioProcessingViewModel> {
+        AudioProcessingViewModel.Factory(
+            repository = container.processingSettings,
+            microphoneState = container.controller.state,
         )
     }
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -44,6 +52,7 @@ class MainActivity : ComponentActivity() {
             BluetoothMicTheme {
                 MainRoute(
                     viewModel = mainViewModel,
+                    processingViewModel = processingViewModel,
                     onRequestPermissions = ::requestPermissions,
                     onOpenPermissions = ::openApplicationSettings,
                     onOpenBluetooth = { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },

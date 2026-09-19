@@ -29,12 +29,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.felipeg.bluetooth_mic.R
+import com.felipeg.bluetooth_mic.audio.processing.AudioProcessingPreset
 import com.felipeg.bluetooth_mic.presentation.main.AudioDeviceUiModel
 import com.felipeg.bluetooth_mic.presentation.main.AudioDeviceUiType
 import com.felipeg.bluetooth_mic.presentation.main.MainUiState
 import com.felipeg.bluetooth_mic.presentation.theme.AppSpacing
 import com.felipeg.bluetooth_mic.presentation.theme.BluetoothMicTheme
-import com.felipeg.bluetooth_mic.presentation.theme.SignalGreen
 
 @Composable
 internal fun SettingsScreen(
@@ -44,6 +44,7 @@ internal fun SettingsScreen(
     onChooseOutput: () -> Unit,
     onOpenBluetooth: () -> Unit,
     onOpenPermissions: () -> Unit,
+    onOpenAudioProcessing: () -> Unit,
 ) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { contentPadding ->
         Column(
@@ -91,16 +92,14 @@ internal fun SettingsScreen(
                 SectionTitle(stringResource(R.string.processing))
                 Spacer(Modifier.height(AppSpacing.sm))
                 SettingsGroup {
-                    StatusSettingRow(stringResource(R.string.echo_cancellation), stringResource(R.string.system_managed))
-                    StatusSettingRow(stringResource(R.string.noise_suppression), stringResource(R.string.system_managed))
-                    StatusSettingRow(stringResource(R.string.audio_buffer), stringResource(R.string.buffer_value))
+                    DeviceSettingRow(
+                        icon = R.drawable.ic_settings,
+                        label = stringResource(R.string.audio_processing),
+                        value = state.audioProcessingPreset.displayName(),
+                        enabled = true,
+                        onClick = onOpenAudioProcessing,
+                    )
                 }
-                Text(
-                    stringResource(R.string.native_processing_note),
-                    modifier = Modifier.padding(top = AppSpacing.sm),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
 
                 Spacer(Modifier.height(AppSpacing.lg))
                 SectionTitle(stringResource(R.string.connections_and_permissions))
@@ -163,23 +162,14 @@ private fun DeviceSettingRow(icon: Int, label: String, value: String, enabled: B
 }
 
 @Composable
-private fun StatusSettingRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = AppSpacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Icon(
-            painterResource(R.drawable.ic_check),
-            contentDescription = stringResource(R.string.enabled),
-            modifier = Modifier.size(22.dp),
-            tint = SignalGreen,
-        )
-    }
-}
+private fun AudioProcessingPreset.displayName(): String = stringResource(
+    when (this) {
+        AudioProcessingPreset.NATURAL -> R.string.natural
+        AudioProcessingPreset.ECHO_REDUCTION -> R.string.echo_reduction
+        AudioProcessingPreset.AGGRESSIVE -> R.string.aggressive
+        AudioProcessingPreset.CUSTOM -> R.string.custom
+    },
+)
 
 @Preview(showBackground = true)
 @Composable
@@ -194,6 +184,7 @@ private fun SettingsScreenPreview() {
             onChooseOutput = {},
             onOpenBluetooth = {},
             onOpenPermissions = {},
+            onOpenAudioProcessing = {},
         )
     }
 }

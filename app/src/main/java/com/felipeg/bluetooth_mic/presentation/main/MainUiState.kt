@@ -1,5 +1,7 @@
 package com.felipeg.bluetooth_mic.presentation.main
 
+import com.felipeg.bluetooth_mic.audio.processing.AudioProcessingPreset
+
 internal enum class AudioDeviceUiType {
     PHONE,
     BLUETOOTH,
@@ -50,6 +52,7 @@ internal data class MainUiState(
     val message: MainMessage? = null,
     val microphoneGranted: Boolean = false,
     val notificationsGranted: Boolean = false,
+    val audioProcessingPreset: AudioProcessingPreset = AudioProcessingPreset.ECHO_REDUCTION,
 ) {
     val isActive: Boolean
         get() = transmissionState == TransmissionUiState.STARTING || transmissionState == TransmissionUiState.LIVE
